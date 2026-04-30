@@ -19,7 +19,7 @@ with col1:
     selected_date = st.date_input("조회 기준일자를 선택하세요", datetime.date.today())
 with col2:
     input_names = st.text_area(
-        "조회할 기업명을 입력하세요 (쉼표 또는 줄바꿈으로 구분)", 
+        "조회할 기업명을 입력", 
         "삼성전자\n상장폐지예시\nSK하이닉스\n거래정지예시"
     )
 
