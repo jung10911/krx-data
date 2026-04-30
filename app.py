@@ -1,78 +1,98 @@
 import streamlit as st
 import pandas as pd
 import requests
+import datetime
 from io import BytesIO
 
-# 페이지 기본 설정
-st.set_page_config(page_title="KRX 주가 및 시가총액 조회기", layout="wide")
+# 페이지 설정
+st.set_page_config(page_title="KRX 주가 및 시가총액 추출기", layout="wide")
 
 st.title("📊 KRX 기업 주가 및 시가총액 추출기")
-st.write("**종목명(ISU_NM)**을 여러 개 입력하면, 해당 기업들의 **종가(TDD_CLSPRC)**와 **시가총액(MKTCAP)**을 조회하고 **엑셀(Excel)**로 다운로드할 수 있습니다.")
+st.write("**종목명(ISU_NM)**을 입력하여 **종가(TDD_CLSPRC)**와 **시가총액(MKTCAP)** 데이터를 추출합니다.")
 
-# API 인증키 설정
-# (주의: 깃허브 업로드 시 아래 줄을 지우고 API_KEY = st.secrets["KRX_API_KEY"] 로 변경하세요!)
+# 1. API 인증키 및 설정
+# 깃허브 배포 시 st.secrets["KRX_API_KEY"] 사용 권장
 API_KEY = "E76EEC8AF3D142F2BCA4A0EDB7510FEC9DA32064"
 
-# 복수 기업명 입력 섹션
+# 2. 사용자 입력 섹션
 input_names = st.text_area(
     "조회할 기업명을 입력하세요 (쉼표 또는 줄바꿈으로 구분)", 
-    "삼성전자, SK하이닉스, NAVER"
+    "삼성전자, SK하이닉스"
 )
 
+# 3. 데이터 조회 로직
 if st.button("데이터 조회 및 엑셀 생성"):
-    # 1. 입력된 문자열을 리스트로 변환 및 공백 제거
+    # 입력값 정리
     target_companies = [name.strip() for name in input_names.replace('\n', ',').split(',') if name.strip()]
 
     if not target_companies:
-        st.warning("최소 1개 이상의 기업명을 입력해주세요.")
+        st.warning("조회할 기업명을 입력해주세요.")
     else:
-        with st.spinner("KRX Open API에서 데이터를 불러오는 중..."):
+        with st.spinner("KRX 데이터를 불러오는 중..."):
             try:
-                # 2. KRX API 호출 설정
-                # ※ 주의: 신청하신 정확한 API 엔드포인트 URL로 반드시 변경해야 합니다. 
-                # (아래는 전종목 시세를 가져오는 가상의 기본 URL 예시입니다)
-                url = "https://data-dbg.krx.co.kr/svc/apis/sto/stk_isur_QtiqIsuList" 
+                # KRX API는 '기준일자(basDd)'가 필수입니다. 
+                # 장 종료 전이라면 어제 날짜로, 종료 후라면 오늘 날짜로 시도합니다.
+                now = datetime.datetime.now()
+                search_date = now.strftime("%Y%m%d")
+                
+                # [중요] 404 에러 방지를 위한 정확한 URL (전종목 시세 기준)
+                # API 서비스에 따라 주소 끝부분이 다를 수 있으니 마이페이지에서 확인 필수입니다.
+                url = "https://data-dbg.krx.co.kr/svc/apis/sto/stk_isur_qtiq_list" 
+                
                 headers = {
-                    "AUTH_KEY": API_KEY,
-                    "Content-Type": "application/json"
+                    "AUTH_KEY": API_KEY
                 }
                 
-                # API 요청 (필요시 날짜 등 params 추가)
-                response = requests.get(url, headers=headers)
-                response.raise_for_status()
-                data = response.json()
-
-                # 3. 사진의 구조에 맞춘 데이터 추출 (OutBlock_1)
-                stock_list = data.get("OutBlock_1", [])
+                # 필수 파라미터 추가
+                params = {
+                    "basDd": search_date
+                }
                 
-                if not stock_list:
-                    st.error("API에서 데이터를 불러오지 못했습니다. URL이나 호출 방식을 확인해주세요.")
+                response = requests.get(url, headers=headers, params=params)
+                
+                # 404 등 오류 발생 시 예외 처리
+                if response.status_code == 404:
+                    st.error("API 주소를 찾을 수 없습니다(404). KRX 마이페이지에서 'Request URL'을 다시 확인해 주세요.")
                 else:
-                    df = pd.DataFrame(stock_list)
+                    response.raise_for_status()
+                    data = response.json()
+
+                    # 4. 데이터 추출 및 필터링 (OutBlock_1)
+                    stock_list = data.get("OutBlock_1", [])
                     
-                    # 4. 사용자가 입력한 종목명(ISU_NM)으로 복수 필터링
-                    filtered_df = df[df['ISU_NM'].isin(target_companies)]
-                    
-                    if filtered_df.empty:
-                        st.warning("입력하신 기업명과 일치하는 데이터가 시장에 없습니다.")
+                    if not stock_list:
+                        st.error("해당 날짜에 데이터가 없습니다. (주말/공휴일 확인)")
                     else:
-                        # 5. 핵심단어 데이터만 선택 및 컬럼명 한글화
-                        result_df = filtered_df[['ISU_NM', 'TDD_CLSPRC', 'MKTCAP']].copy()
-                        result_df.columns = ['종목명', '종가', '시가총액']
+                        df = pd.DataFrame(stock_list)
                         
-                        st.success("조회 완료!")
-                        st.dataframe(result_df, use_container_width=True)
+                        # 종목명(ISU_NM) 일치 여부 확인
+                        filtered_df = df[df['ISU_NM'].isin(target_companies)]
                         
-                        # 6. 엑셀(Excel) 다운로드 기능 구현
-                        output = BytesIO()
-                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                            result_df.to_excel(writer, index=False, sheet_name='KRX_Data')
-                        
-                        st.download_button(
-                            label="📥 엑셀(Excel) 파일 다운로드",
-                            data=output.getvalue(),
-                            file_name="krx_stock_data.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
+                        if filtered_df.empty:
+                            st.warning("일치하는 종목명이 없습니다. 정확한 이름을 입력했는지 확인하세요.")
+                        else:
+                            # 필요한 컬럼만 추출 (종목명, 종가, 시가총액)
+                            result_df = filtered_df[['ISU_NM', 'TDD_CLSPRC', 'MKTCAP']].copy()
+                            result_df.columns = ['종목명', '종가', '시가총액']
+                            
+                            # 결과 출력
+                            st.success(f"{len(result_df)}건의 데이터를 찾았습니다.")
+                            st.dataframe(result_df, use_container_width=True)
+                            
+                            # 5. 엑셀 다운로드 파일 생성
+                            output = BytesIO()
+                            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                                result_df.to_excel(writer, index=False, sheet_name='KRX_Data')
+                            
+                            st.download_button(
+                                label="📥 결과 엑셀 다운로드",
+                                data=output.getvalue(),
+                                file_name=f"KRX_Data_{search_date}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            )
+                            
             except Exception as e:
-                st.error(f"오류가 발생했습니다: {e}")
+                st.error(f"오류 발생: {e}")
+pandas
+requests
+xlsxwriter
