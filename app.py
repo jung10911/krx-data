@@ -7,7 +7,7 @@ from io import BytesIO
 # 페이지 설정
 st.set_page_config(page_title="KRX 주가 및 시가총액 추출기", layout="wide")
 
-st.title("📊 KRX 기업 주가 및 시가총액 추출기 (숫자 자동 포맷형)")
+st.title("📊 KRX 기업 주가 및 시가총액 조히")
 st.write("**종목명(ISU_NM)**을 입력하면, 빈칸은 유지하면서 엑셀 다운로드 시 **숫자(천 단위 콤마)** 형식으로 바로 출력되도록 자동 변환합니다.")
 
 # API 인증키
