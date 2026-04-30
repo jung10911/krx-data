@@ -8,7 +8,7 @@ from io import BytesIO
 st.set_page_config(page_title="KRX 주가 및 시가총액 추출기", layout="wide")
 
 st.title("📊 KRX 기업 주가 및 시가총액 조회")
-st.write("종목명을 입력시 주가,시가총액 조회 가능.")
+st.write("종목명을 입력시 주가,시가총액 조회 가능")
 
 # API 인증키
 API_KEY = "E76EEC8AF3D142F2BCA4A0EDB7510FEC9DA32064"
