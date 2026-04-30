@@ -5,10 +5,10 @@ import datetime
 from io import BytesIO
 
 # 페이지 설정
-st.set_page_config(page_title="KRX 주가 및 시가총액 추출기", layout="wide")
+st.set_page_config(page_title="KRX 주가 및 시가총액 조회", layout="wide")
 
-st.title("📊 KRX 기업 주가 및 시가총액 조회")
-st.write("종목명을 입력하면(다중 입력 가능), 주가,시가총액이 출력")
+st.title("📊 KRX 기업 주가 및 시가총액 추출기 (숫자 포맷 및 공란 '0' 표기)")
+st.write("종목명(다중 입력 가능) 입력하면, 주가, 시가총액 출력")
 
 # API 인증키
 API_KEY = "E76EEC8AF3D142F2BCA4A0EDB7510FEC9DA32064"
@@ -74,24 +74,22 @@ if st.button("데이터 조회 및 엑셀 생성"):
                         result_df['TDD_CLSPRC'] = None
                         result_df['MKTCAP'] = None
                     
+                    # 🔥 [핵심 수정] 결측치(NaN)를 모두 숫자 0으로 일괄 변환
+                    result_df.fillna(0, inplace=True)
+                    
                     # 컬럼명 한글로 변경
                     result_df.columns = ['종목명', '종가', '시가총액']
                     
                     st.success(f"총 {len(result_df)}개의 기업 데이터를 준비했습니다!")
                     
-                    # 🔥 [핵심 수정] 스트림릿 화면 출력 시 NaN을 '-' 로 대체
-                    # 숫자 포맷을 적용하면서 결측치(na_rep)를 "-"로 설정합니다.
-                    st.dataframe(result_df.style.format({'종가': '{:,.0f}', '시가총액': '{:,.0f}'}, na_rep="-"), use_container_width=True)
-                    
-                    # 🔥 [핵심 수정] 엑셀 다운로드를 위해 실제 데이터프레임의 NaN을 "-" 기호로 치환
-                    # 위 style.format은 화면 표시용이므로, 엑셀에 들어갈 데이터도 직접 수정해줍니다.
-                    excel_df = result_df.copy()
-                    excel_df.fillna("-", inplace=True)
+                    # 스트림릿 화면 출력 (0도 포맷팅되어 콤마 규칙을 따릅니다)
+                    st.dataframe(result_df.style.format({'종가': '{:,.0f}', '시가총액': '{:,.0f}'}), use_container_width=True)
                     
                     # 엑셀 다운로드 파일 생성
                     output = BytesIO()
                     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                        excel_df.to_excel(writer, index=False, sheet_name='KRX_Data')
+                        # 0으로 채워진 데이터프레임을 그대로 엑셀로 내보냄
+                        result_df.to_excel(writer, index=False, sheet_name='KRX_Data')
                         
                         workbook = writer.book
                         worksheet = writer.sheets['KRX_Data']
