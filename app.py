@@ -8,7 +8,7 @@ from io import BytesIO
 st.set_page_config(page_title="KRX 주가 및 시가총액 추출기", layout="wide")
 
 st.title("📊 KRX 기업 주가 및 시가총액 조회")
-st.write("종목명을 입력시 주가,시가총액 조회 가능")
+st.write("종목명을 입력하면(다중 입력 가능), 주가,시가총액이 출력")
 
 # API 인증키
 API_KEY = "E76EEC8AF3D142F2BCA4A0EDB7510FEC9DA32064"
@@ -20,7 +20,7 @@ with col1:
 with col2:
     input_names = st.text_area(
         "조회할 기업명을 입력하세요 (쉼표 또는 줄바꿈으로 구분)", 
-        "나우로보틱스\n쎄크\n에이유브랜즈\n더즌"
+        "삼성전자\n상장폐지예시\nSK하이닉스\n거래정지예시"
     )
 
 if st.button("데이터 조회 및 엑셀 생성"):
@@ -64,7 +64,7 @@ if st.button("데이터 조회 및 엑셀 생성"):
                     if not api_df.empty and 'ISU_NM' in api_df.columns:
                         api_filtered = api_df[['ISU_NM', 'TDD_CLSPRC', 'MKTCAP']].drop_duplicates(subset=['ISU_NM']).copy()
                         
-                        # 🔥 [핵심 추가] 문자를 실제 숫자형 데이터로 완벽히 변환
+                        # 문자를 실제 숫자형 데이터로 변환 (변환 실패 시 NaN)
                         api_filtered['TDD_CLSPRC'] = pd.to_numeric(api_filtered['TDD_CLSPRC'], errors='coerce')
                         api_filtered['MKTCAP'] = pd.to_numeric(api_filtered['MKTCAP'], errors='coerce')
                         
@@ -79,15 +79,20 @@ if st.button("데이터 조회 및 엑셀 생성"):
                     
                     st.success(f"총 {len(result_df)}개의 기업 데이터를 준비했습니다!")
                     
-                    # 스트림릿 화면에서도 콤마가 보이게 포맷팅 출력 (NaN 값은 빈칸 처리)
-                    st.dataframe(result_df.style.format({'종가': '{:,.0f}', '시가총액': '{:,.0f}'}, na_rep=""), use_container_width=True)
+                    # 🔥 [핵심 수정] 스트림릿 화면 출력 시 NaN을 '-' 로 대체
+                    # 숫자 포맷을 적용하면서 결측치(na_rep)를 "-"로 설정합니다.
+                    st.dataframe(result_df.style.format({'종가': '{:,.0f}', '시가총액': '{:,.0f}'}, na_rep="-"), use_container_width=True)
+                    
+                    # 🔥 [핵심 수정] 엑셀 다운로드를 위해 실제 데이터프레임의 NaN을 "-" 기호로 치환
+                    # 위 style.format은 화면 표시용이므로, 엑셀에 들어갈 데이터도 직접 수정해줍니다.
+                    excel_df = result_df.copy()
+                    excel_df.fillna("-", inplace=True)
                     
                     # 엑셀 다운로드 파일 생성
                     output = BytesIO()
                     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                        result_df.to_excel(writer, index=False, sheet_name='KRX_Data')
+                        excel_df.to_excel(writer, index=False, sheet_name='KRX_Data')
                         
-                        # 🔥 [핵심 추가] xlsxwriter를 활용해 엑셀 파일 자체에 콤마 서식 강제 적용
                         workbook = writer.book
                         worksheet = writer.sheets['KRX_Data']
                         
