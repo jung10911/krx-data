@@ -7,7 +7,7 @@ from io import BytesIO
 # 페이지 설정
 st.set_page_config(page_title="KRX 주가 및 시가총액 조회", layout="wide")
 
-st.title("📊 KRX API 기반기업 주가 및 시가총액 조회")
+st.title("📊 KRX API기반 기업 주가 및 시가총액 조회")
 st.write("종목명(다중 입력 가능) 입력시 주가, 시가총액 출력")
 
 # API 인증키
